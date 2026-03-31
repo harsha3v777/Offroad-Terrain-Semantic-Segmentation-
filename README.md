@@ -1,28 +1,196 @@
-# 🏜️ COHO — Offroad Terrain Semantic Segmentation
+# OffRoad Vision — Terrain Segmentation
 
-A deep learning pipeline for **pixel-level semantic segmentation** of offroad terrain, built on **Mask2Former** (Swin-Base backbone) with optional **SAM3 refinement** for boundary sharpening.
+> Semantic segmentation of off-road terrain scenes using **Mask2Former** (Swin-Base backbone) with optional **SAM3 refinement** for boundary sharpening. Built for the **Duality AI Track — Hack Energy 2.0** hackathon. Deployed live as a web application on Hugging Face Spaces.
 
-> Fine-tuned on 2,857 offroad images across **11 terrain classes** — achieving **~60% mIoU** and **~87.9% pixel accuracy**.
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Hugging%20Face-orange?style=flat-square)](https://huggingface.co/spaces/harsha3777/offroad-segmentation)
+[![Python](https://img.shields.io/badge/Python-3.10-blue?style=flat-square)](https://python.org)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.2-red?style=flat-square)](https://pytorch.org)
+[![Transformers](https://img.shields.io/badge/Transformers-4.40+-yellow?style=flat-square)](https://huggingface.co/docs/transformers)
+[![Gradio](https://img.shields.io/badge/Gradio-4.44+-green?style=flat-square)](https://gradio.app)
+[![License](https://img.shields.io/badge/License-MIT-lightgrey?style=flat-square)](LICENSE)
 
 ---
 
-## 🗂️ Project Structure
+## Table of Contents
+
+- [Demo](#demo)
+- [Overview](#overview)
+- [Dataset](#dataset)
+- [Model Architecture](#model-architecture)
+- [Training](#training)
+- [Results](#results)
+- [Project Structure](#project-structure)
+- [Setup and Installation](#setup-and-installation)
+- [Running Locally](#running-locally)
+- [Deployment](#deployment)
+- [Tech Stack](#tech-stack)
+- [Future Work](#future-work)
+- [Team](#team)
+
+---
+
+## Demo
+
+Upload any off-road scene image and the model instantly segments every terrain type pixel by pixel.
+
+| Original | Segmentation Mask | Overlay |
+|----------|-------------------|---------|
+| Raw input image | Color-coded terrain classes | Mask blended with original |
+
+**Live app:** https://huggingface.co/spaces/harsha3777/offroad-segmentation
+
+---
+
+## Overview
+
+Off-road environments are highly unstructured — a mix of trees, rocks, dry grass, bushes, logs, and sky all blended together. Semantic segmentation assigns a terrain class to every single pixel in the image, which is critical for:
+
+- Autonomous off-road vehicle navigation
+- Agricultural and mining robots
+- Drone landing zone detection
+- Environmental monitoring and land cover mapping
+- Search and rescue robotics
+
+This project fine-tunes **Mask2Former** (a state-of-the-art transformer-based segmentation model) on the Duality AI off-road dataset, with an optional **SAM3** (Segment Anything Model 3) refinement stage to sharpen predictions on uncertain regions. The final model is deployed as a real-time web application where users can upload images and instantly visualize terrain segmentation results.
+
+---
+
+## Dataset
+
+Provided by **Duality AI** as part of Hack Energy 2.0.
+
+| Split | Images |
+|-------|--------|
+| Train | 2,857 |
+| Validation | 317 |
+| Test | 1,002 |
+
+### Terrain Classes (11 total)
+
+| ID | Class | Color |
+|----|-------|-------|
+| 0 | Background | Black |
+| 1 | Trees | Forest Green |
+| 2 | Lush Bushes | Bright Green |
+| 3 | Dry Grass | Tan |
+| 4 | Dry Bushes | Brown |
+| 5 | Ground Clutter | Grey |
+| 6 | Flowers | Pink |
+| 7 | Logs | Dark Brown |
+| 8 | Rocks | Silver Grey |
+| 9 | Landscape | Wheat |
+| 10 | Sky | Sky Blue |
+
+> **Bug fix:** The original Duality-provided script was missing class 600 (Flowers). We identified and corrected this, bringing the total from 10 to 11 classes.
+
+---
+
+## Model Architecture
+
+The model is a two-stage pipeline:
 
 ```
-COHO/
-├── train_mask2former.py          # Full training + SAM3 evaluation pipeline
-├── test_mask2former.py           # Single-image inference & visualization
-├── upload_model.py               # Push trained model to HuggingFace Hub
-├── deploy_space.py               # Deploy Gradio app to HuggingFace Spaces
+Input Image (512×512)
+       │
+       ▼
+┌──────────────────────────┐
+│   Mask2Former             │  ← Fine-tuned
+│   (Swin-Base backbone)    │
+│   Pretrained on ADE20K    │
+│   Encoder: Frozen         │
+│   Decoder: Trained        │
+└──────────┬───────────────┘
+           │  per-pixel class logits
+           ▼
+    Semantic Segmentation Map
+           │
+           ▼  (optional)
+┌──────────────────────────┐
+│   SAM3 Refinement         │  ← Low-confidence regions only
+│   (Segment Anything 3)    │
+│   Bounding-box prompts    │
+│   per uncertain class     │
+└──────────┬───────────────┘
+           │
+           ▼
+   Refined Segmentation Map
+```
+
+### Stage 1 — Mask2Former (Training + Inference)
+
+- **Backbone:** Swin-Base Transformer, pretrained on ImageNet-21K
+- **Base model:** `facebook/mask2former-swin-base-IN21k-ade-semantic`
+- **Encoder:** Frozen during training (pixel-level module)
+- **Decoder:** Fine-tuned on offroad terrain data
+- **Output:** Per-pixel semantic segmentation map with 11 classes
+
+### Stage 2 — SAM3 Refinement (Inference Only)
+
+- **Model:** `facebook/sam3` (Segment Anything Model 3)
+- **Purpose:** Refine low-confidence Mask2Former predictions
+- **Method:** For each class region where Mask2Former confidence < 0.7, a bounding-box prompt is sent to SAM3, which produces sharper masks
+- **Behavior:** Only overwrites uncertain pixels — high-confidence Mask2Former predictions are preserved
+
+---
+
+## Training
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| Epochs | 20 |
+| Batch size | 2 |
+| Optimizer | AdamW |
+| Learning rate | 5e-5 |
+| Weight decay | 1e-4 |
+| Scheduler | Cosine Annealing |
+| Loss | Mask2Former Hungarian matching loss |
+| Hardware | Google Colab Tesla T4 GPU |
+| Image size | 512 × 512 |
+| Gradient clipping | max_norm = 1.0 |
+
+### Data Augmentation
+
+```python
+augmentations = [
+    HorizontalFlip(p=0.5),
+    ColorJitter(brightness=0.3, contrast=0.3, saturation=0.2, p=0.5),
+    GaussianBlur(p=0.2),
+]
+```
+
+---
+
+## Results
+
+| Metric | Score |
+|--------|-------|
+| Validation mIoU | **~60%** |
+| Validation Pixel Accuracy | **~87.9%** |
+| Training Epochs | 20 |
+| Backbone | Swin-Base (IN21K pretrained) |
+
+---
+
+## Project Structure
+
+```
+Offroad-Terrain-Semantic-Segmentation/
+├── train_mask2former.py              # Full training + SAM3 evaluation pipeline
+├── test_mask2former.py               # Single-image inference & visualization
+├── upload_model.py                   # Push trained model to HuggingFace Hub
+├── deploy_space.py                   # Deploy Gradio app to HuggingFace Spaces
 ├── hf_space/
-│   ├── app.py                    # Gradio web demo
-│   ├── requirements.txt          # Space-specific dependencies
-│   └── README.md                 # HF Space metadata
+│   ├── app.py                        # Gradio web demo (deployed to HF Spaces)
+│   ├── requirements.txt              # Space-specific dependencies
+│   └── README.md                     # HF Space metadata
 ├── Offroad_Segmentation_Scripts/
-│   ├── train_segmentation.py     # Alternative training script
-│   ├── test_segmentation.py      # Alternative testing script
-│   └── visualize.py              # Visualization utilities
-├── requirements.txt              # Project dependencies
+│   ├── train_segmentation.py         # Alternative training script
+│   ├── test_segmentation.py          # Alternative testing script
+│   ├── visualize.py                  # Visualization utilities
+│   └── ENV_SETUP/                    # Environment setup scripts
+├── requirements.txt                  # Project dependencies
 ├── .gitignore
 ├── LICENSE
 └── README.md
@@ -30,25 +198,7 @@ COHO/
 
 ---
 
-## 🎯 Segmentation Classes
-
-| ID | Class           | Color                                                        |
-|----|-----------------|--------------------------------------------------------------|
-| 0  | Background      | ![#000000](https://placehold.co/12x12/000000/000000) Black  |
-| 1  | Trees           | ![#228B22](https://placehold.co/12x12/228B22/228B22) Green  |
-| 2  | Lush Bushes     | ![#00FF00](https://placehold.co/12x12/00FF00/00FF00) Lime   |
-| 3  | Dry Grass       | ![#D2B48C](https://placehold.co/12x12/D2B48C/D2B48C) Tan   |
-| 4  | Dry Bushes      | ![#8B5A2B](https://placehold.co/12x12/8B5A2B/8B5A2B) Brown |
-| 5  | Ground Clutter  | ![#808080](https://placehold.co/12x12/808080/808080) Gray   |
-| 6  | Flowers         | ![#FF69B4](https://placehold.co/12x12/FF69B4/FF69B4) Pink   |
-| 7  | Logs            | ![#654321](https://placehold.co/12x12/654321/654321) Umber  |
-| 8  | Rocks           | ![#A9A9A9](https://placehold.co/12x12/A9A9A9/A9A9A9) Silver |
-| 9  | Landscape       | ![#DEB887](https://placehold.co/12x12/DEB887/DEB887) Wheat  |
-| 10 | Sky             | ![#87CEEB](https://placehold.co/12x12/87CEEB/87CEEB) Blue   |
-
----
-
-## ⚙️ Setup
+## Setup and Installation
 
 ### Prerequisites
 
@@ -56,17 +206,22 @@ COHO/
 - CUDA-capable GPU (recommended)
 - HuggingFace account & write token (for model upload / space deployment)
 
-### Installation
+### Clone the repository
 
 ```bash
-git clone https://github.com/<your-username>/COHO.git
-cd COHO
+git clone https://github.com/harsha3v777/Offroad-Terrain-Semantic-Segmentation-.git
+cd Offroad-Terrain-Semantic-Segmentation-
+```
+
+### Install dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
-### Dataset
+### Download dataset
 
-Download and extract the offroad segmentation dataset into the project root:
+Download and extract the Duality AI offroad segmentation dataset into the project root:
 
 ```
 Offroad_Segmentation_Training_Dataset/
@@ -81,9 +236,9 @@ Offroad_Segmentation_Training_Dataset/
 
 ---
 
-## 🚀 Usage
+## Running Locally
 
-### 1. Train
+### Train the model
 
 ```bash
 python train_mask2former.py \
@@ -95,9 +250,9 @@ python train_mask2former.py \
 Key flags:
 - `--train-dir` / `--val-dir` — custom dataset paths
 - `--runs-dir` — output directory for checkpoints & plots (default: `./runs_mask2former`)
-- `--eval-only` — skip training and run evaluation only
+- `--eval-only` — skip training, run evaluation only
 
-### 2. Test on a Single Image
+### Test on a single image
 
 ```bash
 python test_mask2former.py \
@@ -106,7 +261,16 @@ python test_mask2former.py \
   --output result.png
 ```
 
-### 3. Upload Model to HuggingFace
+Upload any off-road image to get instant terrain segmentation with:
+- Color-coded segmentation mask
+- Overlay of mask on original image
+- Per-class IoU metrics
+
+---
+
+## Deployment
+
+### Upload model to HuggingFace Hub
 
 ```bash
 python upload_model.py \
@@ -114,7 +278,7 @@ python upload_model.py \
   --token hf_...
 ```
 
-### 4. Deploy Gradio Demo to HuggingFace Spaces
+### Deploy Gradio app to HuggingFace Spaces
 
 ```bash
 python deploy_space.py \
@@ -122,35 +286,60 @@ python deploy_space.py \
   --token hf_...
 ```
 
----
-
-## 🏗️ Architecture
-
-The pipeline consists of two stages:
-
-1. **Mask2Former** — Transformer-based segmentation model with Swin-Base backbone, fine-tuned with frozen encoder and cosine annealing schedule.
-2. **SAM3 Refinement** *(optional)* — Segment Anything Model 3 refines low-confidence Mask2Former predictions using bounding-box prompts per class, improving boundary precision.
+The app runs automatically on push to the Hugging Face Space repository. Gradio handles all dependencies and serves the web interface.
 
 ---
 
-## 📊 Results
+## Tech Stack
 
-| Metric          | Value   |
-|-----------------|---------|
-| Val mIoU        | ~60%    |
-| Val Pixel Acc   | ~87.9%  |
-| Training Epochs | 20      |
-| Backbone        | Swin-Base (IN21K pretrained) |
+| Component | Technology |
+|-----------|-----------|
+| Segmentation model | Mask2Former (Facebook Research) |
+| Backbone | Swin-Base Transformer (IN21K) |
+| Refinement | SAM3 — Segment Anything Model 3 |
+| Framework | PyTorch + HuggingFace Transformers |
+| Training | Google Colab T4 GPU |
+| Web demo | Gradio |
+| Model hosting | HuggingFace Hub |
+| App hosting | HuggingFace Spaces |
+| Augmentation | Albumentations |
+| Version control | GitHub |
 
 ---
 
-## 🌐 Live Demo
+## Future Work
 
-Try the model on HuggingFace Spaces:  
-🔗 [Offroad Segmentation Demo](https://huggingface.co/spaces/kartheek1531/offroad-segmentation)
+- **Larger backbone** — Upgrade from Swin-Base to Swin-Large for richer feature representations
+- **Full SAM3 integration** — Run SAM3 refinement on all test images and benchmark the mIoU improvement
+- **Advanced augmentation** — Add CutMix, MixUp, and random scale/crop for more robust training
+- **Backbone fine-tuning** — Unfreeze Swin encoder with a very small learning rate for domain adaptation
+- **Full test set evaluation** — Run inference on all 1,002 test images and submit to the hackathon leaderboard
+- **Real-time video** — Extend the app to process live video streams from drone or vehicle cameras
+- **Edge deployment** — Quantize and export to ONNX/TensorRT for mobile and embedded inference
+- **Class-balanced sampling** — Implement oversampling for rare classes (flowers, logs) to boost their IoU
 
 ---
 
-## 📄 License
+## Team
 
-This project is licensed under the [MIT License](LICENSE).
+**Team Name:** OffRoad Vision  
+**Hackathon:** Hack Energy 2.0 — Duality AI Track
+
+| Name | Role |
+|------|------|
+| Harsha Vennapusa | Model training, deployment, full-stack development |
+
+---
+
+## Acknowledgements
+
+- [Duality AI](https://duality.ai) for the off-road segmentation dataset and hackathon
+- [Facebook Research](https://github.com/facebookresearch/Mask2Former) for the Mask2Former architecture
+- [Facebook Research](https://github.com/facebookresearch/segment-anything) for the Segment Anything Model
+- [Hugging Face](https://huggingface.co) for free model and app hosting
+
+---
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
