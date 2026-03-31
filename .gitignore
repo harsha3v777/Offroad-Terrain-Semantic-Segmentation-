@@ -1,0 +1,82 @@
+# ========================
+# Python
+# ========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ========================
+# Virtual Environments
+# ========================
+.env
+.venv
+env/
+venv/
+ENV/
+
+# ========================
+# Jupyter Notebooks
+# ========================
+.ipynb_checkpoints/
+*.ipynb
+
+# ========================
+# IDE / Editor
+# ========================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ========================
+# OS Files
+# ========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ========================
+# Dataset & Large Files
+# ========================
+Offroad_Segmentation_Training_Dataset/
+Offroad_Segmentation_Training_Dataset.zip
+Offroad_Segmentation_testImages/
+Offroad_Segmentation_testImages.zip
+Offroad_Segmentation_Scripts.zip
+
+# ========================
+# Model Checkpoints & Runs
+# ========================
+runs_mask2former/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+
+# ========================
+# Output Files
+# ========================
+test_output.png
+*.log
+
+# ========================
+# Misc
+# ========================
+*.zip
+.env
+.env.local
