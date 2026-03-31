@@ -2,7 +2,7 @@
 
 > Semantic segmentation of off-road terrain scenes using **Mask2Former** (Swin-Base backbone) with optional **SAM3 refinement** for boundary sharpening. Built for the **Duality AI Track — Hack Energy 2.0** hackathon. Deployed live as a web application on Hugging Face Spaces.
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Hugging%20Face-orange?style=flat-square)](https://huggingface.co/spaces/harsha3777/offroad-segmentation)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Hugging%20Face-orange?style=flat-square)]([https://huggingface.co/spaces/harsha3777/offroad-segmentation](https://superboldly-unfluffy-hermila.ngrok-free.dev/))
 [![Python](https://img.shields.io/badge/Python-3.10-blue?style=flat-square)](https://python.org)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.2-red?style=flat-square)](https://pytorch.org)
 [![Transformers](https://img.shields.io/badge/Transformers-4.40+-yellow?style=flat-square)](https://huggingface.co/docs/transformers)
